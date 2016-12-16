@@ -3,7 +3,8 @@ vers = "0.0.1"
 
 if !isfile(target)
     @static if is_linux()
-        LibGit2.clone("https://github.com/kpamnany/gasp", "gasp")
+        repo = LibGit2.clone("https://github.com/kpamnany/gasp", "gasp")
+        LibGit2.branch!(repo, "v0.2")
         println("Compiling libgasp...")
         run(`make -C gasp`)
     else
