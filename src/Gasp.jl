@@ -33,6 +33,8 @@ end
 @inline sync() = ccall((:gasp_sync, libgasp), Void, ())
 @inline cpu_pause() = ccall((:cpu_pause, libgasp), Void, ())
 @inline rdtsc() = ccall((:rdtsc, libgasp), Culonglong, ())
+@inline start_sde_tracing() = ccall((:start_sde_tracing, libgasp), Void, ())
+@inline stop_sde_tracing() = ccall((:stop_sde_tracing, libgasp), Void, ())
 
 include("Garray.jl")
 include("Dtree.jl")
