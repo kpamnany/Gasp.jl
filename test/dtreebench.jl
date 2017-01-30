@@ -5,8 +5,6 @@ using Base.Threads
 
 cpu_hz = 0.0
 
-@inline secs2cpuhz(s) = s * cpu_hz::Float64
-
 @inline ntputs(tid, s...) = ccall(:puts, Cint, (Ptr{Int8},), string("[$grank]<$tid> ", s...))
 
 function threadfun(dt, ni, ci, li, ilock, rundt, dura)
@@ -37,8 +35,9 @@ function threadfun(dt, ni, ci, li, ilock, rundt, dura)
             unlock(ilock)
 
             # wait dura[item] seconds
-            ticks = secs2cpuhz(dura[item])
-            #ntputs(tid, string("item ", item, ", ", ticks, " ticks"))
+            global cpu_hz
+            ticks = dura[item] * cpu_hz
+            #ntputs(tid, "item $item: $(dura[item]) secs, $ticks ticks")
             startts = Gasp.rdtsc()
             while Gasp.rdtsc() - startts < ticks
                 Gasp.cpu_pause()
@@ -48,19 +47,20 @@ function threadfun(dt, ni, ci, li, ilock, rundt, dura)
 end
 
 function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fan_out = 1024)
+    affinitize(2)
     # get CPU speed
     global cpu_hz
     t = Gasp.rdtsc()
     sleep(1)
-    cpu_hz = (Gasp.rdtsc() - t) / 1e9
+    cpu_hz = Gasp.rdtsc() - t
 
     # create the tree
     dt, is_parent = Dtree(fan_out, nwi, true, 1.0, first_distrib, rest_distrib, min_distrib)
 
     # ---
     if grank == 1
-        println("dtreebench -- ", ngranks, " ranks")
-        println("  system clock speed is ", cpu_hz, " GHz")
+        println("dtreebench -- $ngranks ranks")
+        println("  system clock speed is $(cpu_hz/1e9) GHz")
     end
 
     # roughly how many work items will each rank will handle?
@@ -97,13 +97,9 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
         println("  ...done.")
     end
 
-    # start threads and run, or run single-threaded
-    if VERSION > v"0.5.0-dev"
-        tfargs = Core.svec(threadfun, dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt), dura)
-        ccall(:jl_threading_run, Void, (Any,), tfargs)
-    else
-        threadfun(dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt), dura)
-    end
+    # start threads and run
+    tfargs = Core.svec(threadfun, dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt), dura)
+    ccall(:jl_threading_run, Void, (Any,), tfargs)
 
     # ---
     if grank == 1
@@ -115,6 +111,5 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     ntputs(1, "wait for done: $wait_done secs")
 end
 
-#bench(80, 0.5, 0.125, 0.2, 0.5, nthreads())
-bench(100, 0.5, 0.125, 0.5, 0.5, nthreads())
+bench(500, 0.5, 0.125, 0.5, 0.5, nthreads())
 

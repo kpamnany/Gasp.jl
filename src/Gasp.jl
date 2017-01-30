@@ -5,7 +5,7 @@ enter_gc_safepoint() = ccall(:jl_gc_safe_enter, Int8, ())
 leave_gc_safepoint(gs) = ccall(:jl_gc_safe_leave, Void, (Int8,), gs)
 
 import Base.ndims, Base.length, Base.size, Base.get, Base.put!, Base.flush
-export Garray, GarrayMemoryHandle, Dtree, ngranks, grank,
+export Garray, GarrayMemoryHandle, Dtree, ngranks, grank, affinitize,
        sync, distribution, access,
        initwork, getwork, runtree
 
