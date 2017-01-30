@@ -42,7 +42,7 @@ function length(ga::Garray)
 end
 
 function size(ga::Garray)
-    dims = Array(Int64, ndims(ga))
+    dims = Array{Int64}(ndims(ga))
     r = ccall((:garray_size, libgasp), Int64, (Ptr{Void}, Ptr{Int64}),
             ga.ahandle[1], dims)
     if r != 0
@@ -56,14 +56,14 @@ function get(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64})
     adjhi = hi - 1
     dims = hi - lo + 1
     cbufdims = dims * ga.elem_size
-    cbuf = Array(UInt8, cbufdims...)
+    cbuf = Array{UInt8}(cbufdims...)
     r = ccall((:garray_get, libgasp), Int64, (Ptr{Void}, Ptr{Int64}, Ptr{Int64},
             Ptr{Void}), ga.ahandle[1], adjlo, adjhi, cbuf)
     if r != 0
         error("Garray get failed")
     end
     iob = IOBuffer(cbuf)
-    buf = Array(ga.atyp, dims...)
+    buf = Array{ga.atyp}(dims...)
     for i = 1:length(buf)
         try
             buf[i] = deserialize(iob)
@@ -80,7 +80,7 @@ function put!(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64}, buf::Array)
     adjhi = hi - 1
     dims = hi - lo + 1
     cbufdims = dims * ga.elem_size
-    cbuf = Array(UInt8, cbufdims...)
+    cbuf = Array{UInt8}(cbufdims...)
     iob = IOBuffer(cbuf, true, true)
     for i = 1:length(buf)
         serialize(iob, buf[i])
@@ -95,8 +95,8 @@ end
 
 function distribution(ga::Garray, nid::Int64)
     nd = ndims(ga)
-    lo = Array(Int64, nd)
-    hi = Array(Int64, nd)
+    lo = Array{Int64}(nd)
+    hi = Array{Int64}(nd)
     r = ccall((:garray_distribution, libgasp), Int64, (Ptr{Void}, Int64,
             Ptr{Int64}, Ptr{Int64}), ga.ahandle[1], nid-1, lo, hi)
     if r != 0
@@ -116,7 +116,7 @@ function access(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64})
         error("could not get access")
     end
     dims = hi - lo + 1
-    buf = Array(ga.atyp, dims...)
+    buf = Array{ga.atyp}(dims...)
     if length(buf) == 0
         return buf
     end

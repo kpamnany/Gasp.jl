@@ -7,51 +7,51 @@ immutable Aelem
     rank::Int64
 end
 
-@inline nputs(nid, s...) = ccall(:puts, Cint, (Ptr{Int8},), string("[$nid] ", s...))
+@inline nputs(s...) = ccall(:puts, Cint, (Cstring,), string("[$grank] ", s...))
 
 macro tst(ex)
     oex = Expr(:inert, ex)
     quote
         r = $ex
-        nputs(nodeid, r ? "passed: " : "failed: ", $oex)
+        nputs(r ? "passed: " : "failed: ", $oex)
     end
 end
 
-if nodeid == 1
-    ccall(:puts, Cint, (Ptr{Int8},), string("garraytest -- $nnodes nodes\n"))
+if rank == 1
+    ccall(:puts, Cint, (Cstring,), string("garraytest -- $ngranks ranks\n"))
 end
 
 # even distribution
 # ---
-nelems = nnodes * 5
+nelems = ngranks * 5
 
 # create the array
 ga = Garray(Aelem, sizeof(Aelem)+8, nelems)
 @tst ndims(ga) == 1
-@tst length(ga) == nnodes * 5
-@tst size(ga) == tuple(nnodes * 5)
+@tst length(ga) == ngranks * 5
+@tst size(ga) == tuple(ngranks * 5)
 
 # get the local part
-lo, hi = distribution(ga, nodeid)
-@tst lo[1] == ((nodeid-1)*5)+1
+lo, hi = distribution(ga, grank)
+@tst lo[1] == ((grank-1)*5)+1
 @tst hi[1] == lo[1]+4
 
-nputs(nodeid, lo, "-", hi)
+nputs(lo, "-", hi)
 
 # write into the local part
 p = access(ga, lo, hi)
-nputs(nodeid, hi[1]-lo[1]+1)
+nputs(hi[1]-lo[1]+1)
 for i = 1:hi[1]-lo[1]+1
-    p[i] = Aelem(lo[1]+i-1, nodeid)
+    p[i] = Aelem(lo[1]+i-1, grank)
 end
 
-# let all nodes complete writing
+# let all ranks complete writing
 flush(ga)
 sync()
 
-# get the whole array on node 1 and verify it
+# get the whole array on rank 1 and verify it
 even_dist_garray = true
-if nodeid == 1
+if grank == 1
     fa, fa_handle = get(ga, [1], [nelems])
     for i=1:nelems
         if fa[i].idx != i
@@ -68,22 +68,22 @@ finalize(ga)
 
 # uneven distribution
 # ---
-nelems = nelems + Int(ceil(nnodes/2))
+nelems = nelems + Int(ceil(ngranks/2))
 ga = Garray(Aelem, sizeof(Aelem)+8, nelems)
 
 # get the local part, write into it, and sync
-lo, hi = distribution(ga, nodeid)
-nputs(nodeid, lo, "-", hi)
+lo, hi = distribution(ga, grank)
+nputs(lo, "-", hi)
 p = access(ga, lo, hi)
 for i = 1:hi[1]-lo[1]+1
-    p[i] = Aelem(lo[1]+i-1, nodeid)
+    p[i] = Aelem(lo[1]+i-1, grank)
 end
 flush(ga)
 sync()
 
-# get the whole array on node 1 and verify it
+# get the whole array on rank 1 and verify it
 uneven_dist_garray = true
-if nodeid == 1
+if grank == 1
     fa, fa_handle = get(ga, [1], [nelems])
     for i=1:nelems
         if fa[i].idx != i

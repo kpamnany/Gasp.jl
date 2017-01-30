@@ -5,7 +5,7 @@ type Dtree
     handle::Array{Ptr{Void}}
 
     function Dtree(fan_out::Int, num_work_items::Int64,
-            can_parent::Bool, node_mul::Float64,
+            can_parent::Bool, rank_mul::Float64,
             first::Float64, rest::Float64, min_dist::Int)
         parents_work = nthreads()>1 ? 1 : 0
         cthrid = cfunction(threadid, Int64, ())
@@ -15,7 +15,7 @@ type Dtree
                 (Ptr{Void}, Cint, Cint, Cint, Cint, Cdouble, Cint, Ptr{Void},
                 Cdouble, Cdouble, Cshort, Ptr{Void}, Ptr{Int64}),
                 ghandle[1], fan_out, num_work_items, can_parent, parents_work,
-                node_mul, nthreads(), cthrid, first, rest, min_dist,
+                rank_mul, nthreads(), cthrid, first, rest, min_dist,
                 pointer(d.handle), pointer(p, 1))
         if r != 0
             error("construction failure")

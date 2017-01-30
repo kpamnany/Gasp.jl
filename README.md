@@ -71,34 +71,34 @@ immutable Aelem
 end
 
 # create the array
-nelems = nnodes * 100
+nelems = ngranks * 100
 ga = Garray(Aelem, sizeof(Aelem)+8, nelems)
 
 # misc array functions
 @assert ndims(ga) == 1
-@assert length(ga) == nnodes * 100
-@assert size(ga) == tuple(nnodes * 100)
+@assert length(ga) == ngranks * 100
+@assert size(ga) == tuple(ngranks * 100)
 
-# get the local part on this node
-lo, hi = distribution(ga, nodeid)
-@assert lo[1] == ((nodeid - 1) * 100) + 1
+# get the local part on this rank
+lo, hi = distribution(ga, grank)
+@assert lo[1] == ((grank - 1) * 100) + 1
 @assert hi[1] == lo[1] + 99
 
 # write into the local part (lo - hi inclusive)
 p = access(ga, lo, hi)
 for i = 1:length(p)
-    p[i] = Aelem(lo[1] + i - 1, nodeid)
+    p[i] = Aelem(lo[1] + i - 1, grank)
 end
 
 # p is no longer valid after flush
 flush(ga)
 
-# let all nodes complete writing
+# let all ranks complete writing
 sync()
 
 # put/get
 ti = [(hi[1] + 1) % nelems]
-put!(ga, ti, ti, [Aelem(100 + nodeid, nodeid)])
+put!(ga, ti, ti, [Aelem(100 + grank, grank)])
 sync()
 
 ti[1] = (ti[1] + 100) % nelems

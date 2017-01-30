@@ -7,28 +7,28 @@ cpu_hz = 0.0
 
 @inline secs2cpuhz(s) = s * cpu_hz::Float64
 
-@inline ntputs(nid, tid, s...) = ccall(:puts, Cint, (Ptr{Int8},), string("[$nid]<$tid> ", s...))
+@inline ntputs(tid, s...) = ccall(:puts, Cint, (Ptr{Int8},), string("[$grank]<$tid> ", s...))
 
 function threadfun(dt, ni, ci, li, ilock, rundt, dura)
     tid = threadid()
     if rundt && tid == 1
-        ntputs(nodeid, tid, "running tree")
+        ntputs(tid, "running tree")
         while runtree(dt)
             Gasp.cpu_pause()
         end
     else
-        ntputs(nodeid, tid, string("begin, ", ni[], " items, ", length(dura), " available delays"))
+        ntputs(tid, string("begin, ", ni[], " items, ", length(dura), " available delays"))
         while ni[] > 0
             lock(ilock)
             if li[] == 0
-                ntputs(nodeid, tid, string("out of work"))
+                ntputs(tid, string("out of work"))
                 unlock(ilock)
                 break
             end
             if ci[] == li[]
-                ntputs(nodeid, tid, string("work consumed (last was ", li[], "); requesting more"))
+                ntputs(tid, string("work consumed (last was ", li[], "); requesting more"))
                 ni[], (ci[], li[]) = getwork(dt)
-                ntputs(nodeid, tid, string("got ", ni[], " work items (", ci[], " to ", li[], ")"))
+                ntputs(tid, string("got ", ni[], " work items (", ci[], " to ", li[], ")"))
                 unlock(ilock)
                 continue
             end
@@ -38,7 +38,7 @@ function threadfun(dt, ni, ci, li, ilock, rundt, dura)
 
             # wait dura[item] seconds
             ticks = secs2cpuhz(dura[item])
-            #ntputs(nodeid, tid, string("item ", item, ", ", ticks, " ticks"))
+            #ntputs(tid, string("item ", item, ", ", ticks, " ticks"))
             startts = Gasp.rdtsc()
             while Gasp.rdtsc() - startts < ticks
                 Gasp.cpu_pause()
@@ -58,33 +58,33 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     dt, is_parent = Dtree(fan_out, nwi, true, 1.0, first_distrib, rest_distrib, min_distrib)
 
     # ---
-    if nodeid == 1
-        println("dtreebench -- ", nnodes, " nodes")
+    if grank == 1
+        println("dtreebench -- ", ngranks, " ranks")
         println("  system clock speed is ", cpu_hz, " GHz")
     end
 
-    # roughly how many work items will each node will handle?
-    each, r = divrem(nwi, nnodes)
+    # roughly how many work items will each rank will handle?
+    each, r = divrem(nwi, ngranks)
     if r > 0
         each = each + 1
     end
 
     # ---
-    if nodeid == 1
-        println("  ", nwi, " work items, ~", each, " per node")
+    if grank == 1
+        println("  ", nwi, " work items, ~", each, " per rank")
     end
 
     # generate random numbers for work item durations
     dura = Float64[]
-    mn = repmat([meani-0.5*stddevi, meani+0.5*stddevi], ceil(Int, nnodes/2))
+    mn = repmat([meani-0.5*stddevi, meani+0.5*stddevi], ceil(Int, ngranks/2))
     mt = MersenneTwister(7777777)
-    for i = 1:nnodes
+    for i = 1:ngranks
         r = randn(mt)*stddevi*0.25+mn[i]
-        append!(dura, max(randn(mt, each)*stddevi+r, zero(Float64)))
+        append!(dura, max.(randn(mt, each)*stddevi+r, zero(Float64)))
     end
 
     # ---
-    if nodeid == 1
+    if grank == 1
         println("  initializing...")
     end
 
@@ -93,7 +93,7 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     ni, (ci, li) = initwork(dt)
 
     # ---
-    if nodeid == 1
+    if grank == 1
         println("  ...done.")
     end
 
@@ -106,13 +106,13 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     end
 
     # ---
-    if nodeid == 1
+    if grank == 1
         println("complete")
     end
     tic()
     finalize(dt)
     wait_done = toq()
-    ntputs(nodeid, 1, "wait for done: $wait_done secs")
+    ntputs(1, "wait for done: $wait_done secs")
 end
 
 #bench(80, 0.5, 0.125, 0.2, 0.5, nthreads())
