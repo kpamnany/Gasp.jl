@@ -27,22 +27,21 @@ nelems = ngranks * 5
 
 # create the array
 ga = Garray(Aelem, sizeof(Aelem)+8, nelems)
-@tst ndims(ga) == 1
 @tst length(ga) == ngranks * 5
-@tst size(ga) == tuple(ngranks * 5)
+@tst elemsize(ga) == sizeof(Aelem)+8
 
 # get the local part
 lo, hi = distribution(ga, grank)
-@tst lo[1] == ((grank-1)*5)+1
-@tst hi[1] == lo[1]+4
+@tst lo == ((grank-1)*5)+1
+@tst hi == lo+4
 
 nputs(lo, "-", hi)
 
 # write into the local part
 p = access(ga, lo, hi)
-nputs(hi[1]-lo[1]+1)
-for i = 1:hi[1]-lo[1]+1
-    p[i] = Aelem(lo[1]+i-1, grank)
+nputs(hi-lo+1)
+for i = 1:hi-lo+1
+    p[i] = Aelem(lo+i-1, grank)
 end
 
 # let all ranks complete writing
@@ -52,7 +51,7 @@ sync()
 # get the whole array on rank 1 and verify it
 even_dist_garray = true
 if grank == 1
-    fa, fa_handle = get(ga, [1], [nelems])
+    fa, fa_handle = get(ga, 1, nelems)
     for i=1:nelems
         if fa[i].idx != i
             println(i, fa[i])
@@ -75,8 +74,8 @@ ga = Garray(Aelem, sizeof(Aelem)+8, nelems)
 lo, hi = distribution(ga, grank)
 nputs(lo, "-", hi)
 p = access(ga, lo, hi)
-for i = 1:hi[1]-lo[1]+1
-    p[i] = Aelem(lo[1]+i-1, grank)
+for i = 1:hi-lo+1
+    p[i] = Aelem(lo+i-1, grank)
 end
 flush(ga)
 sync()
@@ -84,7 +83,7 @@ sync()
 # get the whole array on rank 1 and verify it
 uneven_dist_garray = true
 if grank == 1
-    fa, fa_handle = get(ga, [1], [nelems])
+    fa, fa_handle = get(ga, 1, nelems)
     for i=1:nelems
         if fa[i].idx != i
             uneven_dist_garray = false

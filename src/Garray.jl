@@ -8,16 +8,11 @@ end
 
 typealias GarrayMemoryHandle IOBuffer
 
-function Garray(T::DataType, elem_size::Int64, dims...)
-    nd = length(dims)
-    if nd < 1
-        error("Garray must have at least one dimension")
-    end
-    adims = collect(dims)::Vector{Int64}
+function Garray(T::DataType, elem_size::Int64, num_elems::Int64)
     a = Garray([C_NULL], T, elem_size, IOBuffer(), [])
-    r = ccall((:garray_create, libgasp), Int64, (Ptr{Void}, Int64, Ptr{Int64},
-            Int64, Ptr{Int64}, Ptr{Void}), ghandle[1], nd, adims, a.elem_size,
-            C_NULL, pointer(a.ahandle, 1))
+    r = ccall((:garray_create, libgasp), Cint, (Ptr{Void}, Int64, Int64,
+              Ptr{Int64}, Ptr{Void}), ghandle[1], num_elems, a.elem_size,
+              C_NULL, pointer(a.ahandle, 1))
     if r != 0
         error("construction failure")
     end
@@ -33,37 +28,27 @@ function Garray(T::DataType, elem_size::Int64, dims...)
     return a
 end
 
-function ndims(ga::Garray)
-    ccall((:garray_ndims, libgasp), Int64, (Ptr{Void},), ga.ahandle[1])
-end
-
 function length(ga::Garray)
     ccall((:garray_length, libgasp), Int64, (Ptr{Void},), ga.ahandle[1])
 end
 
-function size(ga::Garray)
-    dims = Array{Int64}(ndims(ga))
-    r = ccall((:garray_size, libgasp), Int64, (Ptr{Void}, Ptr{Int64}),
-            ga.ahandle[1], dims)
-    if r != 0
-        error("could not get size")
-    end
-    return tuple(dims...)
+function elemsize(ga::Garray)
+    ccall((:garray_elemsize, libgasp), Int64, (Ptr{Void},), ga.ahandle[1])
 end
 
-function get(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64})
+function get(ga::Garray, lo::Int64, hi::Int64)
     adjlo = lo - 1
     adjhi = hi - 1
-    dims = hi - lo + 1
-    cbufdims = dims * ga.elem_size
-    cbuf = Array{UInt8}(cbufdims...)
-    r = ccall((:garray_get, libgasp), Int64, (Ptr{Void}, Ptr{Int64}, Ptr{Int64},
-            Ptr{Void}), ga.ahandle[1], adjlo, adjhi, cbuf)
+    getlen = hi - lo + 1
+    cbuflen = getlen * ga.elem_size
+    cbuf = Array{UInt8}(cbuflen)
+    r = ccall((:garray_get, libgasp), Cint, (Ptr{Void}, Int64, Int64,
+              Ptr{Void}), ga.ahandle[1], adjlo, adjhi, cbuf)
     if r != 0
         error("Garray get failed")
     end
     iob = IOBuffer(cbuf)
-    buf = Array{ga.atyp}(dims...)
+    buf = Array{ga.atyp}(getlen)
     for i = 1:length(buf)
         try
             buf[i] = deserialize(iob)
@@ -75,53 +60,51 @@ function get(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64})
     return buf, iob
 end
 
-function put!(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64}, buf::Array)
+function put!(ga::Garray, lo::Int64, hi::Int64, buf::Array)
     adjlo = lo - 1
     adjhi = hi - 1
-    dims = hi - lo + 1
-    cbufdims = dims * ga.elem_size
-    cbuf = Array{UInt8}(cbufdims...)
+    putlen = hi - lo + 1
+    cbuflen = putlen * ga.elem_size
+    cbuf = Array{UInt8}(cbuflen)
     iob = IOBuffer(cbuf, true, true)
     for i = 1:length(buf)
         serialize(iob, buf[i])
         seek(iob, i * ga.elem_size)
     end
-    r = ccall((:garray_put, libgasp), Int64, (Ptr{Void}, Ptr{Int64}, Ptr{Int64},
-            Ptr{Void}), ga.ahandle[1], adjlo, adjhi, cbuf)
+    r = ccall((:garray_put, libgasp), Cint, (Ptr{Void}, Int64, Int64,
+              Ptr{Void}), ga.ahandle[1], adjlo, adjhi, cbuf)
     if r != 0
         error("Garray put failed")
     end
 end
 
-function distribution(ga::Garray, nid::Int64)
-    nd = ndims(ga)
-    lo = Array{Int64}(nd)
-    hi = Array{Int64}(nd)
-    r = ccall((:garray_distribution, libgasp), Int64, (Ptr{Void}, Int64,
-            Ptr{Int64}, Ptr{Int64}), ga.ahandle[1], nid-1, lo, hi)
+function distribution(ga::Garray, rank::Int64)
+    lo = Ref{Int64}(0)
+    hi = Ref{Int64}(0)
+    r = ccall((:garray_distribution, libgasp), Cint, (Ptr{Void}, Int64,
+            Ptr{Int64}, Ptr{Int64}), ga.ahandle[1], rank-1, lo, hi)
     if r != 0
         error("could not get distribution")
     end
-    lo = lo+1
-    hi = hi+1
-    return lo, hi
+    llo = lo[] + 1
+    lhi = hi[] + 1
+    return llo, lhi
 end
 
-function access(ga::Garray, lo::Vector{Int64}, hi::Vector{Int64})
+function access(ga::Garray, lo::Int64, hi::Int64)
     p = [C_NULL]
-    r = ccall((:garray_access, libgasp), Int64, (Ptr{Void}, Ptr{Int64},
-            Ptr{Int64}, Ptr{Ptr{Void}}), ga.ahandle[1], lo-1, hi-1,
-            pointer(p, 1))
+    r = ccall((:garray_access, libgasp), Cint, (Ptr{Void}, Int64, Int64,
+              Ptr{Ptr{Void}}), ga.ahandle[1], lo-1, hi-1, pointer(p, 1))
     if r != 0
         error("could not get access")
     end
-    dims = hi - lo + 1
-    buf = Array{ga.atyp}(dims...)
+    acclen = hi - lo + 1
+    buf = Array{ga.atyp}(acclen)
     if length(buf) == 0
         return buf
     end
-    cdims = dims * ga.elem_size
-    iob = IOBuffer(unsafe_wrap(Array, convert(Ptr{UInt8}, p[1]), cdims...),
+    cbuflen = acclen * ga.elem_size
+    iob = IOBuffer(unsafe_wrap(Array, convert(Ptr{UInt8}, p[1]), cbuflen),
                    true, true)
 
     for i = 1:length(buf)
