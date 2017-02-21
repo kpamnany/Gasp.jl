@@ -1,12 +1,14 @@
+__precompile__()
+
 module Gasp
 
 using Base.Threads
 enter_gc_safepoint() = ccall(:jl_gc_safe_enter, Int8, ())
 leave_gc_safepoint(gs) = ccall(:jl_gc_safe_leave, Void, (Int8,), gs)
 
-import Base.ndims, Base.length, Base.size, Base.get, Base.put!, Base.flush
+import Base.length, Base.get, Base.put!, Base.flush
 export Garray, GarrayMemoryHandle, Dtree, ngranks, grank, affinitize,
-       sync, distribution, access,
+       sync, distribution, access, elemsize,
        initwork, getwork, runtree
 
 const libgasp = joinpath(dirname(@__FILE__), "..", "deps", "gasp",
