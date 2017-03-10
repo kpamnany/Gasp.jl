@@ -71,11 +71,11 @@ immutable Aelem
 end
 
 # create the array
-nelems = ngranks * 100
+nelems = ngranks() * 100
 ga = Garray(Aelem, sizeof(Aelem)+8, nelems)
 
 # misc array functions
-@assert length(ga) == ngranks * 100
+@assert length(ga) == ngranks() * 100
 @assert elemsize(ga) == sizeof(Aelem)+8
 
 # get the local part on this rank

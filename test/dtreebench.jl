@@ -5,7 +5,7 @@ using Base.Threads
 
 cpu_hz = 0.0
 
-@inline ntputs(tid, s...) = ccall(:puts, Cint, (Ptr{Int8},), string("[$grank]<$tid> ", s...))
+@inline ntputs(tid, s...) = ccall(:puts, Cint, (Ptr{Int8},), string("[$(grank())]<$tid> ", s...))
 
 function threadfun(dt, ni, ci, li, ilock, rundt, dura)
     tid = threadid()
@@ -58,33 +58,33 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     dt, is_parent = Dtree(fan_out, nwi, true, 1.0, first_distrib, rest_distrib, min_distrib)
 
     # ---
-    if grank == 1
-        println("dtreebench -- $ngranks ranks")
+    if grank() == 1
+        println("dtreebench -- $(ngranks()) ranks")
         println("  system clock speed is $(cpu_hz/1e9) GHz")
     end
 
     # roughly how many work items will each rank will handle?
-    each, r = divrem(nwi, ngranks)
+    each, r = divrem(nwi, ngranks())
     if r > 0
         each = each + 1
     end
 
     # ---
-    if grank == 1
+    if grank() == 1
         println("  ", nwi, " work items, ~", each, " per rank")
     end
 
     # generate random numbers for work item durations
     dura = Float64[]
-    mn = repmat([meani-0.5*stddevi, meani+0.5*stddevi], ceil(Int, ngranks/2))
+    mn = repmat([meani-0.5*stddevi, meani+0.5*stddevi], ceil(Int, ngranks()/2))
     mt = MersenneTwister(7777777)
-    for i = 1:ngranks
+    for i = 1:ngranks()
         r = randn(mt)*stddevi*0.25+mn[i]
         append!(dura, max.(randn(mt, each)*stddevi+r, zero(Float64)))
     end
 
     # ---
-    if grank == 1
+    if grank() == 1
         println("  initializing...")
     end
 
@@ -93,7 +93,7 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     ni, (ci, li) = initwork(dt)
 
     # ---
-    if grank == 1
+    if grank() == 1
         println("  ...done.")
     end
 
@@ -102,7 +102,7 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     ccall(:jl_threading_run, Void, (Any,), tfargs)
 
     # ---
-    if grank == 1
+    if grank() == 1
         println("complete")
     end
     tic()

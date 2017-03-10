@@ -14,37 +14,66 @@ export Garray, GarrayMemoryHandle, Dtree, ngranks, grank, affinitize,
 const libgasp = joinpath(dirname(@__FILE__), "..", "deps", "gasp",
         "libgasp.$(Libdl.dlext)")
 
+const ghandle = [C_NULL]
+num_garrays = 0
+exiting = false
+
 function __init__()
-    global const ghandle = [C_NULL]
+    global ghandle
     ccall((:gasp_init, libgasp), Int64, (Cint, Ptr{Ptr{UInt8}}, Ptr{Void}),
           length(ARGS), ARGS, pointer(ghandle, 1))
-    global const ngranks = ccall((:gasp_nranks, libgasp), Int64, ())
-    global const grank = ccall((:gasp_rank, libgasp), Int64, ())+1
-    global num_garrays = 0
-    global exiting = false
     atexit() do
         global exiting
         exiting = true
     end
 end
 
+__init__()
+
 function __shutdown__()
     ccall((:gasp_shutdown, libgasp), Void, (Ptr{Void},), ghandle[1])
 end
 
+@inline ngranks() = ccall((:gasp_nranks, libgasp), Int64, ())
+@inline grank() = ccall((:gasp_rank, libgasp), Int64, ())+1
 @inline sync() = ccall((:gasp_sync, libgasp), Void, ())
 @inline cpu_pause() = ccall((:cpu_pause, libgasp), Void, ())
 @inline rdtsc() = ccall((:rdtsc, libgasp), Culonglong, ())
 @inline start_sde_tracing() = ccall((:start_sde_tracing, libgasp), Void, ())
 @inline stop_sde_tracing() = ccall((:stop_sde_tracing, libgasp), Void, ())
 
-function affinitize(rpn::Int; show::Bool=false)
+#=
+function affinitize(ranks_per_node::Int; show::Bool=false)
     function set_thread_affinity()
         tid = threadid()
-        cpu = (((grank - 1) % rpn) * nthreads())
-        show && ccall(:puts, Cint, (Cstring,), string("[$grank]<$tid> bound to $(cpu + tid)"))
+        cpu = (((grank() - 1) % ranks_per_node) * nthreads())
+        show && ccall(:puts, Cint, (Cstring,), string("[$grank()]<$tid> bound to $(cpu + tid)"))
         mask = zeros(UInt8, 4096)
         mask[cpu + tid] = 1
+        uvtid = ccall(:uv_thread_self, UInt64, ())
+        ccall(:uv_thread_setaffinity, Int, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Int64),
+              pointer_from_objref(uvtid), mask, C_NULL, 4096)
+    end
+    ccall(:jl_threading_run, Void, (Any,), Core.svec(set_thread_affinity))
+end
+=#
+
+function affinitize(avail_cores::Int,
+                    avail_threads_per_core::Int,
+                    ranks_per_node::Int;
+                    use_threads_per_core::Int=1,
+                    show::Bool=false)
+    function set_thread_affinity()
+        start = (((grank() - 1) % ranks_per_node) * div(nthreads(), use_threads_per_core))
+        tid = threadid()
+        offset, ht = divrem(tid - 1, use_threads_per_core)
+        for i = 1:ht
+            offset = offset + avail_cores
+        end
+        target = start + offset
+        show && ccall(:puts, Cint, (Cstring,), string("[$(grank())]<$tid> bound to $target"))
+        mask = zeros(UInt8, 4096)
+        mask[target] = 1
         uvtid = ccall(:uv_thread_self, UInt64, ())
         ccall(:uv_thread_setaffinity, Int, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Int64),
               pointer_from_objref(uvtid), mask, C_NULL, 4096)
