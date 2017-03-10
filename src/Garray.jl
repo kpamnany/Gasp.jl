@@ -6,7 +6,7 @@ type Garray
     access_arr::Array
 end
 
-typealias GarrayMemoryHandle IOBuffer
+const GarrayMemoryHandle = IOBuffer
 
 function Garray(T::DataType, elem_size::Int64, num_elems::Int64)
     a = Garray([C_NULL], T, elem_size, IOBuffer(), [])
