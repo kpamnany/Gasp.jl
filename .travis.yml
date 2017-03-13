@@ -2,11 +2,12 @@ sudo: required
 dist: trusty
 language: julia
 os: linux
-julia: 0.5
+julia: nightly
 notifications:
   email: false
 env:
   - JULIA_NUM_THREADS=2
+  - MPICH_CC=gcc
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y mpich libmpich-dev
