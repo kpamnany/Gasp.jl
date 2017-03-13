@@ -47,7 +47,6 @@ function threadfun(dt, ni, ci, li, ilock, rundt, dura)
 end
 
 function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fan_out = 1024)
-    affinitize(2)
     # get CPU speed
     global cpu_hz
     t = Gasp.rdtsc()
