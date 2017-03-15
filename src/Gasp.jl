@@ -42,22 +42,6 @@ end
 @inline start_sde_tracing() = ccall((:start_sde_tracing, libgasp), Void, ())
 @inline stop_sde_tracing() = ccall((:stop_sde_tracing, libgasp), Void, ())
 
-#=
-function affinitize(ranks_per_node::Int; show::Bool=false)
-    function set_thread_affinity()
-        tid = threadid()
-        cpu = (((grank() - 1) % ranks_per_node) * nthreads())
-        show && ccall(:puts, Cint, (Cstring,), string("[$grank()]<$tid> bound to $(cpu + tid)"))
-        mask = zeros(UInt8, 4096)
-        mask[cpu + tid] = 1
-        uvtid = ccall(:uv_thread_self, UInt64, ())
-        ccall(:uv_thread_setaffinity, Int, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Int64),
-              pointer_from_objref(uvtid), mask, C_NULL, 4096)
-    end
-    ccall(:jl_threading_run, Void, (Any,), Core.svec(set_thread_affinity))
-end
-=#
-
 function affinitize(avail_cores::Int,
                     avail_threads_per_core::Int,
                     ranks_per_node::Int;
@@ -71,12 +55,17 @@ function affinitize(avail_cores::Int,
             offset = offset + avail_cores
         end
         target = start + offset
-        show && ccall(:puts, Cint, (Cstring,), string("[$(grank())]<$tid> bound to $target"))
-        mask = zeros(UInt8, 4096)
-        mask[target] = 1
-        uvtid = ccall(:uv_thread_self, UInt64, ())
-        ccall(:uv_thread_setaffinity, Int, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Int64),
-              pointer_from_objref(uvtid), mask, C_NULL, 4096)
+        show && ccall(:puts, Cint, (Cstring,), string("[$(grank())]<$tid> binding to $target"))
+        ccall((:set_affinity, libgasp), Cint, (Cint,), target)
+        #mask = zeros(UInt8, 4096)
+        #mask[target] = 1
+        #uvtid = ccall(:uv_thread_self, UInt64, ())
+        #ccall(:uv_thread_setaffinity, Int, (Ptr{Void}, Ptr{Void}, Ptr{Void}, Int64),
+        #      pointer_from_objref(uvtid), mask, C_NULL, 4096)
+        if show
+            cpu = ccall(:sched_getcpu, Cint, ())
+            ccall(:puts, Cint, (Cstring,), string("[$(grank())]<$tid> => $cpu"))
+        end
     end
     ccall(:jl_threading_run, Void, (Any,), Core.svec(set_thread_affinity))
 end
