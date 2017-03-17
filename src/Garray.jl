@@ -52,8 +52,11 @@ function get(ga::Garray, lo::Int64, hi::Int64)
     for i = 1:length(buf)
         try
             buf[i] = deserialize(iob)
-        catch e
-            break
+        catch exc
+            if !isa(exc, UndefRefError) && !isa(exc, BoundsError)
+                rethrow()
+            end
+            # this is expected when an array element is uninitialized
         end
         seek(iob, i * ga.elem_size)
     end
