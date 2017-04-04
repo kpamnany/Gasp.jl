@@ -3,7 +3,7 @@ target = "gasp/libgasp.$(Libdl.dlext)"
 if !isfile(target)
     @static if is_linux()
         repo = LibGit2.clone("https://github.com/kpamnany/gasp", "gasp")
-        LibGit2.branch!(repo, "v0.3")
+        LibGit2.branch!(repo, "v0.4")
         println("Compiling libgasp...")
         run(`make -C gasp`)
     else
