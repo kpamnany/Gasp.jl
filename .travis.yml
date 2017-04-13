@@ -6,7 +6,7 @@ julia: nightly
 notifications:
   email: false
 env:
-  - JULIA_NUM_THREADS=2
+  - JULIA_NUM_THREADS=2 MPICH_MAX_THREAD_SAFETY=multiple
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y mpich libmpich-dev
@@ -14,4 +14,5 @@ script:
   - julia -e 'Pkg.clone(pwd()); Pkg.build("Gasp")'
   - mpiexec.hydra -np 4 julia --depwarn=no test/dtreebench.jl
   - mpiexec.hydra -np 4 julia --depwarn=no test/garraytest.jl
+  - mpiexec.hydra -np 5 julia --depwarn=no test/dlogtest.jl
 

@@ -17,7 +17,7 @@ macro tst(ex)
     end
 end
 
-if rank == 1
+if grank() == 1
     ccall(:puts, Cint, (Cstring,), string("garraytest -- $(ngranks()) ranks\n"))
 end
 
