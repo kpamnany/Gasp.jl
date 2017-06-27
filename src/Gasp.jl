@@ -19,10 +19,16 @@ const ghandle = [C_NULL]
 num_garrays = 0
 exiting = false
 
-function __init__()
-    global ghandle
-    ccall((:gasp_init, libgasp), Int64, (Cint, Ptr{Ptr{UInt8}}, Ptr{Void}),
+@noinline function init_gasp()
+     global ghandle
+     ccall((:gasp_init, libgasp), Int64, (Cint, Ptr{Ptr{UInt8}}, Ptr{Void}),
           length(ARGS), ARGS, pointer(ghandle, 1))
+end
+
+function __init__()
+    # Work around openmpi not being loadable in a private namespace
+    Libdl.dlopen(libgasp, Libdl.RTLD_GLOBAL)
+    init_gasp()
     atexit() do
         global exiting
         exiting = true
